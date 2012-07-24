@@ -287,11 +287,35 @@ module.exports = function setup(fsOptions) {
     }
 
     function mkfile(path, options, callback) {
+        if (!options.stream) {
+            return callback(new Error("stream is an required option"));
+        }
+
+        // Pause the input for now since we're not ready to write quite yet
+        var readable = options.stream;
+        if (readable.pause) readable.pause();
+        var buffer = [];
+        readable.on("data", onData);
+        readable.on("end", onEnd);
+        function onData(chunk) {
+          buffer.push(["data", chunk]);
+        }
+        function onEnd() {
+          buffer.push(["end"]);
+        }
+        function error(err) {
+          readable.removeListener("data", onData);
+          readable.removeListener("end", onEnd);
+          if (readable.destroy) readable.destroy();
+          if (err) callback(err);
+        }
+
+
         // First check to see if the file already exists at that path
         getId(path, function (err, id) {
             if (err) {
                 if (err.code === "ENOENT") return create();
-                else return callback(err);
+                else return error(err);
             }
             // Upload over the existing file.
             return upload(id);
@@ -299,13 +323,13 @@ module.exports = function setup(fsOptions) {
             function create() {
                 // Get the parent's id so we can insert a new file inside it.
                 getId(dirname(path), function (err, parentId) {
-                    if (err) return callback(err);
+                    if (err) return error(err);
                     var req = {
                         title: basename(path),
                         parents: [{id: parentId}]
                     };
                     request("POST", "https://www.googleapis.com/drive/v2/files", req, function (err, file) {
-                        if (err) return callback(err);
+                        if (err) return error(err);
                         // Store this new information in the lookup cache
                         files[file.id] = file;
                         paths[path] = file.id;
@@ -315,25 +339,30 @@ module.exports = function setup(fsOptions) {
             }
             function upload(id) {
                 generateRequestOptions("PUT", "https://www.googleapis.com/upload/drive/v2/files/" + id + "?uploadType=media", function (err, reqOptions) {
-                    if (err) return callback(err);
+                    if (err) return error(err);
 
                     var stream = https.request(reqOptions, function (res) {
                         if (res.statusCode === 200) {
                             // Invalidate the file cache now that the file is changed.
                             delete files[id];
-                            stream.emit("saved");
+                            callback(null, {id: id});
                         }
                         else {
-                            stream.emit("error", new Error("Problem uploading file"));
-                            res.on("data", function (chunk) {
-                                console.error(chunk);
-                            });
+                            res.on("data", console.error);
+                            error(new Error("Problem uploading file"));
                         }
                     });
-                    callback(null, {
-                        stream: stream,
-                        id: id
+
+                    readable.pipe(stream);
+
+                    // Stop buffering events and playback anything that happened.
+                    readable.removeListener("data", onData);
+                    readable.removeListener("end", onEnd);
+                    buffer.forEach(function (event) {
+                        readable.emit.apply(readable, event);
                     });
+                    // Resume the input stream if possible
+                    if (readable.resume) readable.resume();
                 });
             }
         });

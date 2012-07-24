@@ -1,0 +1,10 @@
+{
+  "name": "vfs-google-drive-example",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "vfs-google-drive": "*",
+    "vfs-http-adapter": "~0.2.0",
+    "stack": "~0.1.0"
+  }
+}
