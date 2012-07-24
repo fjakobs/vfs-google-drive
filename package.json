@@ -1,0 +1,19 @@
+{
+  "author": "Tim Caswell <tim@c9.io>",
+  "name": "vfs-google-drive",
+  "description": "A google-drive client for vfs.",
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/c9/vfs-google-drive.git"
+  },
+  "main": "drive.js",
+  "dependencies": {
+    "simple-mime": "0.0.5"
+  },
+  "devDependencies": {},
+  "optionalDependencies": {},
+  "engines": {
+    "node": "*"
+  }
+}
